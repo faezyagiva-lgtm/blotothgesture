@@ -1,0 +1,1146 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Gesture Controller</title>
+ 
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.24.7/babel.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@1.3.1/dist/tf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8.5/dist/teachablemachine-image.min.js"></script>
+ 
+<link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --s1:#5d92d0; --s2:#8fb3dc; --s3:#c3c1da; --s4:#f1b79b; --s5:#ffd0a2; --sun:#ffb277;
+  --hill1:#35563f; --hill2:#223f31; --fog:rgba(255,200,170,.3);
+  --w1:#efb9a0; --w2:#8394b8; --w3:#34476a;
+  --cloud:rgba(255,205,180,.9); --cloudB:rgba(255,255,255,.75);
+  --stars:0; --bld:#ecd9c8; --bldroof:#9a6a58;
+  --mint:#30d158; --amber:#ffc857; --ink:#12204a;
+}
+:root.night {
+  --s1:#050a22; --s2:#0c1848; --s3:#262a6a; --s4:#6a3f84; --s5:#c46d86; --sun:#ff8fa0;
+  --hill1:#152b30; --hill2:#0a1a20; --fog:rgba(190,100,140,.25);
+  --w1:#a15a78; --w2:#2a3470; --w3:#0a1236;
+  --cloud:rgba(180,150,230,.5); --cloudB:rgba(200,190,255,.35);
+  --stars:1; --bld:#f2d98a; --bldroof:#3a2f4a;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100%; }
+body { font-family: "Plus Jakarta Sans","Segoe UI",system-ui,sans-serif; color:#fff; background:var(--s1); overflow-x:hidden; }
+:root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { color-scheme: dark; } }
+ 
+/* ---------- scene ---------- */
+.world { position:relative; min-height:1040px; overflow:hidden; isolation:isolate; }
+.scene { position:absolute; inset:0; width:100%; height:100%; z-index:0; }
+.scene stop { transition: stop-color .8s ease; }
+.cl { animation: cdrift 46s ease-in-out infinite alternate; }
+.cl.c2 { animation-duration: 62s; animation-direction: alternate-reverse; }
+.cl.c3 { animation-duration: 54s; }
+@keyframes cdrift { from { transform: translateX(-70px); } to { transform: translateX(70px); } }
+.rip { animation: ripple 9s ease-in-out infinite alternate; }
+.rip.r2 { animation-duration: 13s; animation-direction: alternate-reverse; }
+.rip.r3 { animation-duration: 17s; }
+@keyframes ripple { from { transform: translateX(-40px); opacity:.5; } to { transform: translateX(40px); opacity:1; } }
+.twinkle { animation: tw 3.4s ease-in-out infinite; }
+@keyframes tw { 50% { opacity:.25; } }
+.cursor-glow { position:fixed; left:0; top:0; width:420px; height:420px; margin:-210px 0 0 -210px; border-radius:50%;
+  background: radial-gradient(circle, rgba(255,225,190,.28), transparent 65%); pointer-events:none; z-index:2; transition:opacity .4s ease; will-change:transform; mix-blend-mode:soft-light; }
+.motes { position:absolute; inset:0; z-index:1; pointer-events:none; }
+ 
+/* ---------- glass ---------- */
+.gp {
+  height:100%; border-radius:34px; padding:22px; position:relative; overflow:hidden; color:#fff;
+  text-shadow: 0 1px 10px rgba(10,20,60,.35);
+  background: linear-gradient(150deg, rgba(255,255,255,.3), rgba(255,255,255,.07) 45%, rgba(255,255,255,.15)), rgba(35,55,110,.2);
+  border: 1.5px solid rgba(255,255,255,.55);
+  box-shadow: inset 0 2px 8px rgba(255,255,255,.55), inset 0 -12px 30px rgba(255,255,255,.07), 0 26px 60px -14px rgba(15,25,70,.5), 0 0 50px rgba(255,255,255,.14);
+  -webkit-backdrop-filter: blur(20px) saturate(1.5); backdrop-filter: blur(20px) saturate(1.5);
+}
+.gp::before { content:""; position:absolute; inset:0; border-radius:inherit; pointer-events:none;
+  background: radial-gradient(120% 50% at 15% 0%, rgba(255,255,255,.38), transparent 55%); }
+.gp > * { position:relative; }
+.pnl { position:absolute; }
+.pnl.ghost { pointer-events:none; opacity:.5; filter:blur(2.5px); }
+.pnl.ghost .gp { padding:14px; }
+.pnl.ghost2 { opacity:.32; filter:blur(5px); }
+.float { height:100%; animation: floaty 8s ease-in-out infinite; }
+@keyframes floaty { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-11px); } }
+.in { height:100%; animation: appear2 1s cubic-bezier(.2,.8,.2,1) both; }
+@keyframes appear2 { from { opacity:0; transform: translateY(30px) scale(.95); } to { opacity:1; transform:none; } }
+.rise { animation: appear2 1s cubic-bezier(.2,.8,.2,1) both; }
+ 
+.round-w { width:54px; height:54px; border-radius:50%; border:0; cursor:pointer; background:#fff; color:var(--ink); display:grid; place-items:center; flex:none;
+  box-shadow:0 10px 26px rgba(10,20,60,.35); transition: transform .25s ease, box-shadow .25s ease; text-shadow:none; }
+.round-w:hover { transform: scale(1.08); box-shadow:0 14px 32px rgba(10,20,60,.45); }
+.round-w:active { transform: scale(.95); }
+.pill-btn { display:inline-flex; align-items:center; justify-content:center; gap:.5rem; border-radius:999px; font-weight:700; font-size:.85rem; padding:.65rem 1.1rem;
+  border:1px solid transparent; cursor:pointer; font-family:inherit; text-shadow:none; transition: transform .25s cubic-bezier(.2,.8,.2,1), box-shadow .25s ease, opacity .2s ease; }
+.pill-btn:hover { transform: translateY(-2px); } .pill-btn:active { transform: scale(.97); }
+.pill-btn:disabled { opacity:.55; cursor:not-allowed; transform:none; }
+.btn-white { background:#fff; color:var(--ink); box-shadow:0 8px 22px rgba(10,20,60,.3); }
+.btn-glass { background:rgba(255,255,255,.2); color:#fff; border-color:rgba(255,255,255,.45); text-shadow:0 1px 6px rgba(10,20,60,.3); }
+.btn-glass:hover { background:rgba(255,255,255,.3); }
+.btn-red { background:rgba(255,92,70,.92); color:#fff; box-shadow:0 8px 22px rgba(255,92,70,.35); }
+.icon-btn { width:44px; height:44px; border-radius:50%; display:grid; place-items:center; cursor:pointer; color:#fff; background:rgba(255,255,255,.2);
+  border:1px solid rgba(255,255,255,.5); -webkit-backdrop-filter:blur(14px); backdrop-filter:blur(14px); transition: transform .25s ease, background .25s ease, box-shadow .25s ease; }
+.icon-btn:hover { transform: translateY(-2px); background:rgba(255,255,255,.32); }
+.icon-btn.on { box-shadow:0 0 0 1px #fff, 0 0 22px rgba(255,255,255,.55); background:rgba(255,255,255,.34); }
+.pill-btn:focus-visible, .icon-btn:focus-visible, .round-w:focus-visible, .dpad:focus-visible, .field:focus-visible, .tut:focus-visible { outline:2px solid #fff; outline-offset:3px; }
+.field { width:100%; border-radius:14px; padding:.68rem .85rem; font-size:.82rem; font-family:inherit; background:rgba(255,255,255,.18); border:1px solid rgba(255,255,255,.45); color:#fff; outline:none; text-shadow:none; }
+.field::placeholder { color:rgba(255,255,255,.72); }
+.field:focus { border-color:#fff; box-shadow:0 0 0 4px rgba(255,255,255,.2); }
+ 
+.t-name { font-size:1.28rem; font-weight:800; letter-spacing:-.015em; text-transform:capitalize; line-height:1.15; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.t-sub { font-size:.78rem; color:rgba(255,255,255,.82); display:flex; align-items:center; gap:.45rem; margin-top:3px; }
+.muted { color:rgba(255,255,255,.8); font-size:.76rem; line-height:1.5; margin:0; }
+.bar { height:4px; border-radius:4px; background:rgba(255,255,255,.35); overflow:hidden; margin-top:10px; }
+.bar i { display:block; height:100%; background:#fff; border-radius:4px; transition: width .3s ease; box-shadow:0 0 10px rgba(255,255,255,.8); }
+.bar-l { display:flex; justify-content:space-between; font-size:.66rem; color:rgba(255,255,255,.8); margin-top:4px; }
+.tile { border-radius:20px; display:grid; place-items:center; flex:none; color:#fff; background: linear-gradient(135deg,#ffb277,#ff7aa8 55%,#7f7bff); box-shadow: inset 0 1px 0 rgba(255,255,255,.5), 0 10px 24px rgba(10,20,60,.3); }
+.status-pill { display:inline-flex; align-items:center; gap:.5rem; padding:.38rem .75rem; border-radius:999px; font-size:.74rem; font-weight:600; background:rgba(255,255,255,.17); border:1px solid rgba(255,255,255,.4); }
+.sdot { position:relative; width:9px; height:9px; border-radius:50%; background:#ffc857; flex:none; }
+.sdot.ok { background:var(--mint); } .sdot.err { background:#ff6a5a; } .sdot.busy { background:#8fd0ff; }
+.sdot.pulse::after { content:""; position:absolute; inset:-5px; border-radius:50%; border:2px solid #ffc857; opacity:0; animation: ping 1.6s ease-out infinite; }
+.sdot.ok.pulse::after { border-color:var(--mint); } .sdot.busy.pulse::after { border-color:#8fd0ff; }
+@keyframes ping { 0% { transform:scale(.5); opacity:.9; } 100% { transform:scale(1.7); opacity:0; } }
+ 
+.cam-view { position:relative; border-radius:24px; overflow:hidden; aspect-ratio:1/1; background: linear-gradient(160deg, rgba(255,160,120,.45), rgba(110,120,230,.4)); border:1px solid rgba(255,255,255,.5); box-shadow: 0 12px 28px rgba(10,20,60,.3); }
+.cam-host { position:absolute; inset:0; } .cam-host canvas { width:100% !important; height:100% !important; object-fit:cover; }
+.scan { position:absolute; left:0; right:0; height:2px; background:linear-gradient(90deg,transparent,#fff,transparent); box-shadow:0 0 18px #fff; animation: scan 2.6s ease-in-out infinite alternate; }
+@keyframes scan { from { top:6%; } to { top:94%; } }
+.lm { animation: lmPulse 1.8s ease-in-out infinite; transform-box:fill-box; transform-origin:center; }
+@keyframes lmPulse { 50% { transform:scale(1.5); opacity:.6; } }
+ 
+.dpad { width:48px; height:48px; border-radius:16px; display:grid; place-items:center; cursor:pointer; color:#fff; font-family:inherit; text-shadow:none;
+  background:rgba(255,255,255,.18); border:1px solid rgba(255,255,255,.45); transition: transform .2s ease, background .2s ease, box-shadow .3s ease, color .2s ease; }
+.dpad:hover { transform:translateY(-2px); background:rgba(255,255,255,.3); } .dpad:active { transform:scale(.93); }
+.dpad.hot { background:#fff; color:var(--ink); box-shadow:0 0 28px rgba(255,255,255,.85); }
+.dpad.stop.hot { background:#ff5c46; color:#fff; box-shadow:0 0 28px rgba(255,92,70,.8); }
+.flash { animation: flash .5s ease; }
+@keyframes flash { 0% { transform:scale(1.2); opacity:.3; } 100% { transform:scale(1); opacity:1; } }
+.cover { border-radius:22px; display:flex; flex-wrap:wrap; gap:6px; align-items:center; justify-content:center; align-content:center; padding:12px; text-align:center;
+  background: linear-gradient(140deg, rgba(25,201,180,.55), rgba(110,100,240,.55)); border:1px solid rgba(255,255,255,.5); box-shadow:0 12px 26px rgba(10,20,60,.3); }
+.chip { padding:.22rem .65rem; border-radius:999px; font-size:.72rem; font-weight:700; background:rgba(255,255,255,.28); border:1px solid rgba(255,255,255,.5); text-transform:capitalize; }
+ 
+.robot-wrap { position:absolute; transition: transform .6s cubic-bezier(.2,.8,.2,1); }
+.aura { position:absolute; inset:-14% -10%; border-radius:50%; background: radial-gradient(closest-side, rgba(134,240,169,.4), transparent 72%); animation: aura 2.6s ease-in-out infinite; }
+@keyframes aura { 50% { transform:scale(1.12); opacity:.55; } }
+.robot-img { display:block; width:100%; position:relative; filter: drop-shadow(0 22px 22px rgba(5,10,30,.5)); user-select:none; -webkit-user-drag:none; }
+ 
+.hero-title { font-size:clamp(2.1rem,4.6vw,3.9rem); line-height:1.05; letter-spacing:-.035em; font-weight:800; margin:0; text-shadow:0 4px 40px rgba(20,30,90,.45); }
+.hero-title span { opacity:.78; }
+.tut { cursor:pointer; border:0; background:none; color:#fff; font-family:inherit; width:100%; height:100%; display:grid; place-items:center; text-align:center; text-shadow:inherit; padding:0; }
+.tut:hover .tile { transform:scale(1.07); } .tut .tile { transition:transform .3s ease; }
+.modal-back { position:fixed; inset:0; z-index:70; background:rgba(5,10,40,.55); -webkit-backdrop-filter:blur(8px); backdrop-filter:blur(8px); display:grid; place-items:center; padding:20px; animation: fade .3s ease both; }
+@keyframes fade { from { opacity:0; } }
+.modal { width:min(560px,100%); max-height:86vh; overflow:auto; border-radius:30px; padding:28px; animation: appear2 .5s cubic-bezier(.2,.8,.2,1) both;
+  background: linear-gradient(150deg, rgba(255,255,255,.28), rgba(255,255,255,.1)), rgba(30,45,100,.7); border:1.5px solid rgba(255,255,255,.5); color:#fff; box-shadow:0 30px 80px rgba(0,0,0,.5); }
+.toast { position:fixed; left:50%; bottom:calc(24px + env(safe-area-inset-bottom,0px)); transform:translateX(-50%); z-index:80; padding:.75rem 1.1rem; border-radius:16px; font-size:.85rem; max-width:90vw;
+  background:rgba(20,35,90,.78); border:1px solid rgba(255,255,255,.4); -webkit-backdrop-filter:blur(14px); backdrop-filter:blur(14px); animation: appear2 .4s ease both; }
+.spinner { width:15px; height:15px; border-radius:50%; border:2px solid rgba(18,32,74,.25); border-top-color:var(--ink); animation: spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+ 
+/* mobile / stacked layout */
+.flowp { position:relative !important; width:100%; margin-bottom:16px; }
+.flowp .gp { height:auto; min-height:0; }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration:.01ms !important; animation-iteration-count:1 !important; transition-duration:.01ms !important; } }
+ 
+/* ================= CLEAR iOS THEME ================= */
+:root { --mint:#30d158; --amber:#ff9f0a; --ink:#0b1b3a; --blue:#0a84ff; --red:#ff453a; }
+body { font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Inter","Segoe UI",system-ui,sans-serif; }
+.gp {
+  padding:22px; border:0; color:#fff;
+  text-shadow:0 1px 2px rgba(0,20,60,.28), 0 2px 16px rgba(0,20,60,.32);
+  background: linear-gradient(135deg, rgba(255,255,255,.16), rgba(255,255,255,.02) 38%, rgba(255,255,255,.05) 62%, rgba(255,255,255,.14)), rgba(20,35,70,.1);
+  box-shadow: inset 0 1px 1px rgba(255,255,255,.75), inset 0 -1px 1px rgba(255,255,255,.3), inset 0 0 26px rgba(255,255,255,.1), 0 22px 50px -18px rgba(8,18,50,.45);
+  -webkit-backdrop-filter: blur(2px) saturate(1.9) brightness(1.1);
+  backdrop-filter: blur(2px) saturate(1.9) brightness(1.1);
+}
+.gp::before { background: radial-gradient(90% 40% at 12% 0%, rgba(255,255,255,.28), transparent 60%), radial-gradient(60% 40% at 95% 100%, rgba(255,255,255,.14), transparent 70%); }
+.gp::after { content:""; position:absolute; inset:0; border-radius:inherit; padding:1.5px; pointer-events:none;
+  background: linear-gradient(135deg, rgba(255,255,255,.95), rgba(255,255,255,.12) 28%, rgba(255,255,255,.04) 55%, rgba(255,255,255,.8));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0); }
+.round-w { background:linear-gradient(180deg,#46a6ff,#0a84ff); color:#fff; box-shadow: inset 0 1px 1px rgba(255,255,255,.6), 0 10px 26px rgba(10,132,255,.5); }
+.round-w:hover { box-shadow: inset 0 1px 1px rgba(255,255,255,.6), 0 14px 34px rgba(10,132,255,.65); }
+.round-w.stop { background:linear-gradient(180deg,#ff6f66,#ff453a); box-shadow: inset 0 1px 1px rgba(255,255,255,.6), 0 10px 26px rgba(255,69,58,.5); }
+.btn-white { background:linear-gradient(180deg,#46a6ff,#0a84ff); color:#fff; box-shadow: inset 0 1px 1px rgba(255,255,255,.6), 0 8px 22px rgba(10,132,255,.45); }
+.btn-glass { background:rgba(255,255,255,.2); color:#fff; border-color:rgba(255,255,255,.55); box-shadow: inset 0 1px 1px rgba(255,255,255,.6); -webkit-backdrop-filter:blur(8px); backdrop-filter:blur(8px); }
+.btn-red { background:linear-gradient(180deg,#ff6f66,#ff453a); color:#fff; box-shadow: inset 0 1px 1px rgba(255,255,255,.55), 0 8px 22px rgba(255,69,58,.4); }
+.icon-btn { background:rgba(255,255,255,.18); border:1px solid rgba(255,255,255,.6); box-shadow: inset 0 1px 1px rgba(255,255,255,.7); }
+.icon-btn.on { background:rgba(10,132,255,.55); box-shadow: inset 0 1px 1px rgba(255,255,255,.7), 0 0 22px rgba(10,132,255,.6); }
+.dpad { background:rgba(255,255,255,.16); border:1px solid rgba(255,255,255,.55); box-shadow: inset 0 1px 1px rgba(255,255,255,.7); border-radius:50%; }
+.dpad.hot { background:linear-gradient(180deg,#46a6ff,#0a84ff); color:#fff; box-shadow: inset 0 1px 1px rgba(255,255,255,.6), 0 0 26px rgba(10,132,255,.8); }
+.dpad.stop.hot { background:linear-gradient(180deg,#ff6f66,#ff453a); box-shadow: inset 0 1px 1px rgba(255,255,255,.6), 0 0 26px rgba(255,69,58,.8); }
+.tile { background:linear-gradient(145deg,#5ac8fa,#5e5ce6); box-shadow: inset 0 1px 1px rgba(255,255,255,.7), 0 10px 24px rgba(30,40,120,.35); }
+.cover { background:linear-gradient(140deg, rgba(90,200,250,.35), rgba(94,92,230,.35)); border:1px solid rgba(255,255,255,.6); box-shadow: inset 0 1px 1px rgba(255,255,255,.6), 0 12px 26px rgba(10,20,60,.25); }
+.chip { background:rgba(255,255,255,.22); border:1px solid rgba(255,255,255,.6); box-shadow: inset 0 1px 1px rgba(255,255,255,.6); }
+.status-pill { background:rgba(255,255,255,.16); border:1px solid rgba(255,255,255,.5); box-shadow: inset 0 1px 1px rgba(255,255,255,.55); }
+.sdot { background:#ff9f0a; } .sdot.ok { background:#30d158; } .sdot.err { background:#ff453a; } .sdot.busy { background:#0a84ff; }
+.sdot.pulse::after { border-color:#ff9f0a; } .sdot.ok.pulse::after { border-color:#30d158; } .sdot.busy.pulse::after { border-color:#0a84ff; }
+.field { background:rgba(255,255,255,.16); border:1px solid rgba(255,255,255,.55); box-shadow: inset 0 1px 3px rgba(0,20,60,.18), inset 0 1px 1px rgba(255,255,255,.4); }
+.field:focus { border-color:#0a84ff; box-shadow:0 0 0 4px rgba(10,132,255,.35); }
+.cam-view { border:1px solid rgba(255,255,255,.6); background:linear-gradient(160deg, rgba(255,255,255,.18), rgba(255,255,255,.05)); box-shadow: inset 0 1px 1px rgba(255,255,255,.6), 0 12px 28px rgba(10,20,60,.28); }
+.bar i { background:linear-gradient(90deg,#5ac8fa,#0a84ff); box-shadow:0 0 10px rgba(10,132,255,.8); }
+.modal { background: linear-gradient(150deg, rgba(255,255,255,.22), rgba(255,255,255,.06)), rgba(20,32,80,.6); -webkit-backdrop-filter:blur(30px) saturate(1.8); backdrop-filter:blur(30px) saturate(1.8); border:1px solid rgba(255,255,255,.55); }
+.aura { background: radial-gradient(closest-side, rgba(48,209,88,.4), transparent 72%); }
+ 
+/* ---- true clear glass ---- */
+.gp { background: linear-gradient(135deg, rgba(255,255,255,.1), rgba(255,255,255,0) 40%, rgba(255,255,255,.07)), rgba(15,30,70,.08); }
+.gp::before { background: radial-gradient(80% 30% at 14% 0%, rgba(255,255,255,.2), transparent 60%), radial-gradient(50% 30% at 94% 100%, rgba(255,255,255,.1), transparent 70%); }
+.robot-img { display:block; width:100%; position:relative; filter: drop-shadow(0 14px 16px rgba(5,10,30,.35)); }
+.bob { animation: bob 5s ease-in-out infinite; }
+@keyframes bob { 50% { transform: translateY(-5px); } }
+.led { fill:#ffe9a8; opacity:.55; animation: ledc 6s linear infinite; }
+.led.on { opacity:1; filter: drop-shadow(0 0 3px rgba(255,255,255,.95)); animation-duration: 2.4s; }
+@keyframes ledc { 0%{fill:#ff6b6b} 20%{fill:#ffd93d} 40%{fill:#6bffb0} 60%{fill:#6bb5ff} 80%{fill:#c77dff} 100%{fill:#ff6b6b} }
+
+/* ================= TEMA BIRU NAVY + LIME (sesuai screenshot) ================= */
+:root {
+  --lime:#d4f53c; --lime2:#bfe82a; --ink:#0a1230;
+  --s1:#020619; --s2:#050d3a; --s3:#09197a; --s4:#1034c4; --s5:#2a58ee; --sun:#5a6cff;
+  --hill1:#08154f; --hill2:#040c33; --fog:rgba(70,100,255,.32);
+  --w1:#2447d8; --w2:#0e2594; --w3:#030a38;
+  --cloud:rgba(90,115,255,.32); --cloudB:rgba(150,170,255,.22);
+  --stars:.55; --bld:#2c43a8; --bldroof:#0a1550;
+}
+:root.night {
+  --s1:#01030d; --s2:#030928; --s3:#061356; --s4:#0a22a0; --s5:#1b3bd0; --sun:#8a5cff;
+  --hill1:#050e3a; --hill2:#02071f; --fog:rgba(80,70,220,.3);
+  --w1:#1a34b8; --w2:#09198a; --w3:#02061f;
+  --cloud:rgba(110,100,255,.3); --cloudB:rgba(160,150,255,.2);
+  --stars:1; --bld:#4a5fd0; --bldroof:#070f3d;
+}
+body { background:#020619; }
+.cursor-glow { background: radial-gradient(circle, rgba(140,160,255,.3), transparent 65%); }
+
+/* panel kaca biru seperti screenshot */
+.gp {
+  background: linear-gradient(160deg, rgba(90,125,255,.5), rgba(30,55,200,.55) 55%, rgba(25,40,170,.6)), rgba(20,40,160,.3);
+  box-shadow: inset 0 1px 1px rgba(255,255,255,.7), inset 0 0 28px rgba(120,150,255,.18), 0 24px 54px -16px rgba(2,8,50,.7), 0 0 40px rgba(60,90,255,.25);
+}
+.gp::before { background: radial-gradient(90% 40% at 12% 0%, rgba(255,255,255,.22), transparent 60%), radial-gradient(60% 40% at 95% 100%, rgba(120,150,255,.25), transparent 70%); }
+
+/* tombol lime */
+.round-w, .btn-white {
+  background:linear-gradient(180deg,#e4ff5a,#c9ef2c); color:var(--ink); text-shadow:none;
+  box-shadow: inset 0 1px 1px rgba(255,255,255,.7), 0 10px 26px rgba(212,245,60,.35);
+}
+.round-w:hover { box-shadow: inset 0 1px 1px rgba(255,255,255,.7), 0 14px 34px rgba(212,245,60,.55); }
+.round-w.stop { background:linear-gradient(180deg,#ff6f66,#ff453a); color:#fff; box-shadow: inset 0 1px 1px rgba(255,255,255,.6), 0 10px 26px rgba(255,69,58,.5); }
+.btn-red { background:linear-gradient(180deg,#ff6a3d,#ff3b1f); color:#fff; box-shadow: inset 0 1px 1px rgba(255,255,255,.55), 0 8px 22px rgba(255,59,31,.4); }
+.btn-glass { background:rgba(255,255,255,.14); border-color:rgba(255,255,255,.4); }
+.dpad { background:rgba(120,140,255,.28); border-color:rgba(255,255,255,.4); }
+.dpad.hot { background:linear-gradient(180deg,#e4ff5a,#c9ef2c); color:var(--ink); box-shadow: inset 0 1px 1px rgba(255,255,255,.6), 0 0 26px rgba(212,245,60,.8); }
+.dpad.stop.hot { background:linear-gradient(180deg,#ff6f66,#ff453a); color:#fff; box-shadow: inset 0 1px 1px rgba(255,255,255,.6), 0 0 26px rgba(255,69,58,.8); }
+.icon-btn { background:rgba(10,20,80,.55); border-color:rgba(255,255,255,.2); box-shadow:none; }
+.icon-btn.on { background:rgba(212,245,60,.2); border-color:var(--lime); color:var(--lime); box-shadow:0 0 18px rgba(212,245,60,.4); }
+.tile { background:linear-gradient(145deg,#6a7dff,#3a2fd0); }
+.cover { background:linear-gradient(140deg, rgba(60,200,160,.5), rgba(60,70,220,.5)); }
+.bar i { background:linear-gradient(90deg,#e4ff5a,#c9ef2c); box-shadow:0 0 10px rgba(212,245,60,.8); }
+.field:focus { border-color:var(--lime); box-shadow:0 0 0 4px rgba(212,245,60,.3); }
+.spinner { border-color:rgba(10,18,48,.25); border-top-color:var(--ink); }
+.sdot.busy { background:var(--lime); } .sdot.busy.pulse::after { border-color:var(--lime); }
+.modal { background: linear-gradient(150deg, rgba(90,125,255,.35), rgba(30,55,200,.3)), rgba(8,16,70,.85); }
+.toast { background:rgba(6,14,70,.88); }
+
+/* judul: baris pertama putih, baris kedua abu-abu */
+.hero-title span { opacity:1; color:#8c93a8; }
+
+/* ================= CLEAR iOS (liquid glass) + SIANG/MALAM + BURUNG ================= */
+:root { --bird:#ffffff; --sundisc:0; }
+
+/* kaca bening: hampir tanpa warna, tanpa blur, hanya pembiasan + tepi terang */
+.gp {
+  background: linear-gradient(135deg, rgba(255,255,255,.08), rgba(255,255,255,0) 35%, rgba(255,255,255,0) 65%, rgba(255,255,255,.06));
+  -webkit-backdrop-filter: saturate(1.6) brightness(1.08);
+  backdrop-filter: saturate(1.6) brightness(1.08);
+  box-shadow: inset 0 1px 1px rgba(255,255,255,.9), inset 0 -1px 1px rgba(255,255,255,.45), inset 0 0 22px rgba(255,255,255,.08), 0 18px 40px -16px rgba(2,8,40,.5);
+  text-shadow: 0 1px 2px rgba(0,15,60,.55), 0 2px 18px rgba(0,15,60,.5);
+}
+.gp::before { background: radial-gradient(70% 26% at 14% 0%, rgba(255,255,255,.22), transparent 60%), radial-gradient(40% 24% at 92% 100%, rgba(255,255,255,.12), transparent 70%); }
+.cover { background:linear-gradient(140deg, rgba(60,200,160,.28), rgba(60,70,220,.28)); }
+.field { background:rgba(255,255,255,.1); }
+.dpad { background:rgba(255,255,255,.12); }
+.cam-view { background:linear-gradient(160deg, rgba(255,255,255,.1), rgba(255,255,255,.02)); }
+.modal-back { -webkit-backdrop-filter:none; backdrop-filter:none; background:rgba(2,6,30,.5); }
+.modal { -webkit-backdrop-filter:saturate(1.6); backdrop-filter:saturate(1.6); background:linear-gradient(150deg, rgba(255,255,255,.14), rgba(255,255,255,.03)), rgba(6,14,60,.5); }
+
+/* mode siang */
+:root.day {
+  --s1:#2f86e6; --s2:#5aa8f0; --s3:#8cc6f6; --s4:#bfe0fa; --s5:#e6f3fd; --sun:#fff1a8;
+  --hill1:#4c9c62; --hill2:#2f7a4c; --fog:rgba(255,255,255,.4);
+  --w1:#a6dbf8; --w2:#4f9fe0; --w3:#1e5fb0;
+  --cloud:rgba(255,255,255,.85); --cloudB:rgba(255,255,255,.75);
+  --stars:0; --bld:#f6efe6; --bldroof:#c2705a;
+  --bird:#173764; --sundisc:1;
+}
+:root.day body { background:#2f86e6; }
+:root.day .gp { background: linear-gradient(135deg, rgba(255,255,255,.1), rgba(255,255,255,0) 35%, rgba(255,255,255,0) 65%, rgba(255,255,255,.08)), rgba(10,50,130,.14); }
+:root.day .hero-title { text-shadow:0 2px 20px rgba(10,50,120,.55); }
+:root.day .hero-title span { color:rgba(255,255,255,.82); }
+:root.day .cursor-glow { background: radial-gradient(circle, rgba(255,255,255,.35), transparent 65%); }
+
+/* burung terbang */
+.birds { position:absolute; inset:0; pointer-events:none; overflow:hidden; color:var(--bird); transition:color .8s ease; }
+.birds.back { z-index:1; }
+.birds.front { z-index:6; }
+.bird-x { position:absolute; left:0; will-change:transform; animation-timing-function:linear; animation-iteration-count:infinite; }
+.bird-x.toR { animation-name:flyR; }
+.bird-x.toL { animation-name:flyL; }
+@keyframes flyR { from { transform:translateX(-12vw); } to { transform:translateX(112vw); } }
+@keyframes flyL { from { transform:translateX(112vw); } to { transform:translateX(-12vw); } }
+.bird-y { animation:birdBob ease-in-out infinite alternate; }
+@keyframes birdBob { from { transform:translateY(-10px) rotate(-2deg); } to { transform:translateY(12px) rotate(2deg); } }
+.birds svg { display:block; filter:drop-shadow(0 2px 3px rgba(0,10,50,.35)); }
+@media (prefers-reduced-motion: reduce) { .birds { display:none; } }
+
+/* ===== efek kaca tebal: pembiasan di tepi, rona biru, kilau bergerak ===== */
+.gp {
+  background: linear-gradient(135deg, rgba(255,255,255,.12), rgba(255,255,255,0) 35%, rgba(255,255,255,0) 65%, rgba(255,255,255,.1)), rgba(40,90,240,.16);
+  box-shadow:
+    inset 0 1px 1px rgba(255,255,255,.95),
+    inset 0 -1px 1px rgba(255,255,255,.5),
+    inset 14px 14px 28px -14px rgba(255,255,255,.55),
+    inset -14px -14px 28px -14px rgba(140,180,255,.5),
+    inset 0 0 40px rgba(90,130,255,.18),
+    0 20px 44px -16px rgba(2,8,50,.6),
+    0 0 36px rgba(70,110,255,.22);
+}
+.gp::before {
+  background:
+    radial-gradient(70% 26% at 14% 0%, rgba(255,255,255,.3), transparent 60%),
+    radial-gradient(40% 24% at 92% 100%, rgba(255,255,255,.18), transparent 70%),
+    linear-gradient(115deg, transparent 42%, rgba(255,255,255,.3) 50%, transparent 58%);
+  background-size: 100% 100%, 100% 100%, 260% 100%;
+  background-repeat: no-repeat;
+  background-position: 0 0, 0 0, 130% 0;
+  animation: glint 7s ease-in-out infinite;
+}
+@keyframes glint {
+  0%, 55% { background-position: 0 0, 0 0, 130% 0; }
+  100% { background-position: 0 0, 0 0, -30% 0; }
+}
+
+/* ===== tanpa kilau & efek hover di controller, vignette dikurangi ===== */
+.gp::before {
+  animation: none;
+  background:
+    radial-gradient(70% 26% at 14% 0%, rgba(255,255,255,.22), transparent 60%),
+    radial-gradient(40% 24% at 92% 100%, rgba(255,255,255,.12), transparent 70%);
+  background-size: 100% 100%;
+  background-position: 0 0;
+}
+.gp {
+  box-shadow:
+    inset 0 1px 1px rgba(255,255,255,.9),
+    inset 0 -1px 1px rgba(255,255,255,.45),
+    inset 10px 10px 22px -12px rgba(255,255,255,.45),
+    0 14px 30px -18px rgba(2,8,50,.45);
+}
+.pnl .round-w:hover, .pnl .pill-btn:hover, .pnl .dpad:hover, .pnl .tut:hover .tile,
+.pnl .round-w:active, .pnl .pill-btn:active, .pnl .dpad:active { transform: none; }
+.pnl .tut .tile { transition: none; }
+.pnl .round-w:hover { box-shadow: inset 0 1px 1px rgba(255,255,255,.7), 0 10px 26px rgba(212,245,60,.35); }
+.pnl .round-w.stop:hover { box-shadow: inset 0 1px 1px rgba(255,255,255,.6), 0 10px 26px rgba(255,69,58,.5); }
+.pnl .btn-glass:hover { background: rgba(255,255,255,.14); }
+.pnl .dpad:hover { background: rgba(255,255,255,.12); }
+.pnl .dpad.hot:hover { background: linear-gradient(180deg,#e4ff5a,#c9ef2c); }
+.pnl .dpad.stop.hot:hover { background: linear-gradient(180deg,#ff6f66,#ff453a); }
+.world:has(.pnl:hover) .cursor-glow { opacity: 0 !important; }
+.pnl.ghost { display: none; }
+:root { --s1:#08164f; --s2:#0d2290; }
+
+/* ===== aksen jadi biru (bukan lime) ===== */
+:root { --lime:#8fd0ff; }
+.round-w, .btn-white {
+  background: linear-gradient(180deg,#5ab0ff,#0a6cff); color:#fff; border:1px solid rgba(255,255,255,.45);
+  box-shadow: inset 0 1px 1px rgba(255,255,255,.7), 0 10px 26px rgba(10,108,255,.45);
+}
+.round-w.stop { background: linear-gradient(180deg,#ff6f66,#ff453a); color:#fff; }
+.pnl .round-w:hover, .round-w:hover { box-shadow: inset 0 1px 1px rgba(255,255,255,.7), 0 10px 26px rgba(10,108,255,.45); }
+.pnl .round-w.stop:hover { box-shadow: inset 0 1px 1px rgba(255,255,255,.6), 0 10px 26px rgba(255,69,58,.5); }
+.dpad.hot, .pnl .dpad.hot:hover { background: linear-gradient(180deg,#5ab0ff,#0a6cff); color:#fff; box-shadow: inset 0 1px 1px rgba(255,255,255,.6), 0 0 22px rgba(10,108,255,.8); }
+.dpad.stop.hot, .pnl .dpad.stop.hot:hover { background: linear-gradient(180deg,#ff6f66,#ff453a); color:#fff; box-shadow: inset 0 1px 1px rgba(255,255,255,.6), 0 0 22px rgba(255,69,58,.8); }
+.bar i { background: linear-gradient(90deg,#8fd0ff,#2f8cff); box-shadow: 0 0 10px rgba(47,140,255,.8); }
+.icon-btn.on { background: rgba(10,108,255,.35); border-color:#5ab0ff; color:#fff; box-shadow: 0 0 18px rgba(10,108,255,.5); }
+.field:focus { border-color:#5ab0ff; box-shadow: 0 0 0 4px rgba(10,108,255,.35); }
+.sdot.busy { background:#5ab0ff; } .sdot.busy.pulse::after { border-color:#5ab0ff; }
+.spinner { border-color: rgba(255,255,255,.35); border-top-color:#fff; }
+
+/* kartu pembuat: gaya baru, tanpa judul */
+.crew { height:100%; display:flex; flex-direction:column; justify-content:center; gap:12px; }
+.crew-row { display:flex; align-items:center; gap:12px; padding:6px 14px 6px 6px; border-radius:999px;
+  background: rgba(255,255,255,.1); border:1px solid rgba(255,255,255,.35); box-shadow: inset 0 1px 1px rgba(255,255,255,.5); }
+.crew-av { width:40px; height:40px; border-radius:50%; display:grid; place-items:center; flex:none; font-weight:800; font-size:.95rem; color:#fff;
+  text-shadow:none; box-shadow: inset 0 1px 1px rgba(255,255,255,.7), 0 6px 14px rgba(10,30,120,.4); }
+.crew-name { font-weight:700; font-size:.95rem; letter-spacing:.01em; }
+
+/* ===== judul besar: kaca cair (bevel, kilau, tepi terang) ===== */
+.hero-title { color:rgba(255,255,255,.26); text-shadow:none; filter:url(#glassText); }
+.hero-title span { color:rgba(255,255,255,.15); opacity:1; }
+:root.day .hero-title { color:rgba(255,255,255,.42); text-shadow:none; }
+:root.day .hero-title span { color:rgba(255,255,255,.3); }
+</style>
+</head>
+<body>
+<div id="root"><p style="padding:40px;color:#fff;font-family:sans-serif">Memuat aplikasi…</p></div>
+ 
+<script type="text/plain" id="app-src">
+(function () {
+declare const React: any;
+declare const ReactDOM: any;
+declare const tmImage: any;
+ 
+const { useState, useEffect, useRef, useCallback } = React;
+ 
+type Tone = "idle" | "busy" | "ok" | "err";
+interface Stat { tone: Tone; text: string; }
+ 
+const UART_SERVICE = "6e400001-b5a3-f393-e0a9-e50e24dcca9e";
+const UART_WRITE   = "6e400002-b5a3-f393-e0a9-e50e24dcca9e"; // browser -> micro:bit
+const DEMO_LABELS  = ["maju", "mundur", "kiri", "kanan", "stop"];
+const CMD_MAP: Record<string, string> = { maju: "MAJU", mundur: "MUNDUR", kiri: "KIRI", kanan: "KANAN", stop: "STOP" };
+const MOVES: Record<string, string> = {
+  MAJU: "translateY(-14px) scale(1.05)", MUNDUR: "translateY(10px) scale(.95)",
+  KIRI: "translateX(-26px) rotate(-4deg)", KANAN: "translateX(26px) rotate(4deg)", STOP: "none",
+};
+const THRESHOLD = 0.8;
+ 
+/* ---------- icons ---------- */
+const ICONS: Record<string, any> = {
+  hand: <g><path d="M18 11V6a2 2 0 0 0-4 0v1"/><path d="M14 10V4a2 2 0 0 0-4 0v2"/><path d="M10 10.5V6a2 2 0 0 0-4 0v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/></g>,
+  cursor: <path d="M4.04 4.69a.5.5 0 0 1 .65-.65l16 6.5a.5.5 0 0 1-.06.95l-6.12 1.58a2 2 0 0 0-1.44 1.44l-1.58 6.12a.5.5 0 0 1-.95.06z"/>,
+  moon: <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>,
+  sun: <g><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></g>,
+  up: <path d="M12 19V5M5 12l7-7 7 7"/>, down: <path d="M12 5v14M19 12l-7 7-7-7"/>,
+  left: <path d="M19 12H5M12 19l-7-7 7-7"/>, right: <path d="M5 12h14M12 5l7 7-7 7"/>,
+  stop: <rect x="6" y="6" width="12" height="12" rx="2.5"/>,
+  play: <path d="M8 4.5v15l12-7.5z" fill="currentColor"/>,
+  pause: <g fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1.2"/><rect x="14" y="5" width="4" height="14" rx="1.2"/></g>,
+  close: <path d="M18 6 6 18M6 6l12 12"/>,
+  bt: <path d="m7 7 10 10-5 5V2l5 5L7 17"/>,
+  book: <g><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></g>,
+  cube: <g><path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="m3 8 9 5 9-5M12 13v8"/></g>,
+};
+function Icon({ name, size = 20 }: { name: string; size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{ICONS[name]}</svg>
+  );
+}
+function Dot({ tone, pulse }: { tone: Tone; pulse?: boolean }) {
+  return <span className={"sdot " + (tone === "ok" ? "ok" : tone === "err" ? "err" : tone === "busy" ? "busy" : "") + (pulse ? " pulse" : "")} />;
+}
+function Pill({ tone, text, pulse }: { tone: Tone; text: string; pulse?: boolean }) {
+  return <span className="status-pill" role="status"><Dot tone={tone} pulse={pulse} />{text}</span>;
+}
+ 
+/* ---------- lakeside scene ---------- */
+const HILL = "M0 650 L0 590 C120 560 220 592 330 572 C470 545 560 588 700 576 C860 560 960 540 1100 570 C1250 602 1400 560 1600 586 L1600 650 Z";
+const HILL2 = "M0 650 L0 622 C140 604 260 630 400 618 C560 604 700 628 860 616 C1020 604 1200 628 1380 612 C1480 604 1550 616 1600 618 L1600 650 Z";
+const BLD: number[][] = [[70,627,24,13],[98,624,18,16],[122,629,28,11],[156,626,20,14],[184,630,26,10],[1160,626,22,14],[1188,623,26,17],[1220,628,20,12],[1246,625,24,15],[1278,630,28,10],[1312,627,18,13]];
+function rnd(i: number) { const x = Math.sin(i * 127.1) * 43758.5453; return x - Math.floor(x); }
+function Scene() {
+  const stars = Array.from({ length: 70 }, (_, i) => ({ x: rnd(i) * 1600, y: rnd(i + 99) * 430, r: 0.6 + rnd(i + 7) * 1.4, d: rnd(i + 3) * 3 }));
+  return (
+    <svg className="scene" viewBox="0 0 1600 1200" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+      <defs>
+        <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" style={{ stopColor: "var(--s1)" }} /><stop offset=".3" style={{ stopColor: "var(--s2)" }} />
+          <stop offset=".55" style={{ stopColor: "var(--s3)" }} /><stop offset=".8" style={{ stopColor: "var(--s4)" }} /><stop offset="1" style={{ stopColor: "var(--s5)" }} />
+        </linearGradient>
+        <linearGradient id="lake" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" style={{ stopColor: "var(--w1)" }} /><stop offset=".3" style={{ stopColor: "var(--w2)" }} /><stop offset="1" style={{ stopColor: "var(--w3)" }} />
+        </linearGradient>
+        <radialGradient id="sun" cx=".5" cy=".5" r=".5"><stop offset="0" style={{ stopColor: "var(--sun)", stopOpacity: .85 }} /><stop offset="1" style={{ stopColor: "var(--sun)", stopOpacity: 0 }} /></radialGradient>
+        <linearGradient id="fog" x1="0" y1="0" x2="0" y2="1"><stop offset="0" style={{ stopColor: "var(--fog)", stopOpacity: 0 }} /><stop offset="1" style={{ stopColor: "var(--fog)", stopOpacity: 1 }} /></linearGradient>
+        <filter id="b10" x="-20%" y="-300%" width="140%" height="700%"><feGaussianBlur stdDeviation="9" /></filter>
+        <filter id="b4" x="-20%" y="-200%" width="140%" height="500%"><feGaussianBlur stdDeviation="3.5" /></filter>
+        <filter id="b20"><feGaussianBlur stdDeviation="18" /></filter>
+      </defs>
+      <rect width="1600" height="660" fill="url(#sky)" />
+      <g style={{ opacity: "var(--stars)", transition: "opacity .8s ease" }}>
+        {stars.map((s, i) => <circle key={i} className="twinkle" cx={s.x} cy={s.y} r={s.r} fill="#fff" style={{ animationDelay: s.d + "s" }} />)}
+      </g>
+      <ellipse cx="1180" cy="652" rx="620" ry="260" fill="url(#sun)" />
+      <g style={{ opacity: "var(--sundisc)", transition: "opacity .8s ease" }}>
+        <circle cx="1180" cy="590" r="120" fill="#fff6c8" opacity=".35" filter="url(#b20)" />
+        <circle cx="1180" cy="590" r="42" fill="#fffbe6" filter="url(#b4)" />
+      </g>
+      <g className="cl" filter="url(#b10)" style={{ fill: "var(--cloudB)" }}>
+        <ellipse cx="520" cy="130" rx="300" ry="9" /><ellipse cx="610" cy="162" rx="210" ry="7" /><ellipse cx="1180" cy="96" rx="250" ry="8" />
+      </g>
+      <g className="cl c2" filter="url(#b10)" style={{ fill: "var(--cloud)" }}>
+        <ellipse cx="380" cy="330" rx="340" ry="11" /><ellipse cx="520" cy="366" rx="260" ry="8" /><ellipse cx="1050" cy="310" rx="300" ry="10" /><ellipse cx="1260" cy="352" rx="220" ry="8" />
+      </g>
+      <g className="cl c3" filter="url(#b10)" style={{ fill: "var(--cloud)" }}>
+        <ellipse cx="760" cy="470" rx="380" ry="12" /><ellipse cx="900" cy="505" rx="260" ry="8" /><ellipse cx="260" cy="520" rx="220" ry="7" />
+      </g>
+      <path d={HILL} style={{ fill: "var(--hill1)" }} />
+      <path d={HILL2} style={{ fill: "var(--hill2)" }} />
+      <rect y="590" width="1600" height="62" fill="url(#fog)" />
+      {BLD.map((b, i) => (
+        <g key={i}><rect x={b[0]} y={b[1]} width={b[2]} height={b[3]} style={{ fill: "var(--bld)" }} /><rect x={b[0]} y={b[1] - 3} width={b[2]} height="4" style={{ fill: "var(--bldroof)" }} /></g>
+      ))}
+      <rect y="650" width="1600" height="560" fill="url(#lake)" />
+      <g transform="translate(0,1300) scale(1,-1)" opacity=".42" filter="url(#b4)"><path d={HILL} style={{ fill: "var(--hill1)" }} /><path d={HILL2} style={{ fill: "var(--hill2)" }} /></g>
+      <ellipse cx="1180" cy="700" rx="360" ry="40" fill="url(#sun)" opacity=".8" />
+      <g filter="url(#b10)" style={{ fill: "var(--cloud)" }} opacity=".55"><ellipse cx="520" cy="760" rx="320" ry="12" /><ellipse cx="1100" cy="800" rx="340" ry="12" /><ellipse cx="760" cy="860" rx="300" ry="10" /></g>
+      <g className="rip" fill="#fff" opacity=".55">
+        <rect x="140" y="700" width="220" height="2" rx="1" /><rect x="900" y="716" width="300" height="2" rx="1" /><rect x="420" y="740" width="160" height="1.6" rx="1" />
+      </g>
+      <g className="rip r2" fill="#fff" opacity=".45">
+        <rect x="620" y="770" width="260" height="2" rx="1" /><rect x="1200" y="790" width="200" height="2" rx="1" /><rect x="60" y="830" width="240" height="2" rx="1" />
+      </g>
+      <g className="rip r3" fill="#fff" opacity=".4">
+        <rect x="360" y="900" width="340" height="2" rx="1" /><rect x="980" y="940" width="280" height="2" rx="1" /><rect x="700" y="1010" width="220" height="2" rx="1" />
+      </g>
+    </svg>
+  );
+}
+ 
+/* ---------- flying birds ---------- */
+function Birds({ front }: { front?: boolean }) {
+  const n = front ? 1 : 3;
+  const seed = front ? 300 : 0;
+  const list = Array.from({ length: n }, (_, i) => {
+    const k = seed + i * 13;
+    return {
+      top: 5 + rnd(k) * 44,
+      size: front ? 34 + rnd(k + 1) * 26 : 18 + rnd(k + 2) * 22,
+      dur: 26 + rnd(k + 3) * 28,
+      delay: -rnd(k + 4) * 40,
+      flap: 0.5 + rnd(k + 5) * 0.35,
+      bob: 3 + rnd(k + 6) * 3,
+      bobDelay: -rnd(k + 8) * 5,
+      right: rnd(k + 7) > 0.35,
+    };
+  });
+  const UP = "M0 -1 Q6 -4 12 4 Q18 -4 24 -1";
+  const DOWN = "M0 9 Q6 3 12 4 Q18 3 24 9";
+  return (
+    <div className={"birds " + (front ? "front" : "back")} aria-hidden="true">
+      {list.map((b, i) => (
+        <div key={i} className={"bird-x " + (b.right ? "toR" : "toL")} style={{ top: b.top + "%", animationDuration: b.dur + "s", animationDelay: b.delay + "s" }}>
+          <div className="bird-y" style={{ animationDuration: b.bob + "s", animationDelay: b.bobDelay + "s" }}>
+            <svg width={b.size} height={b.size * 0.65} viewBox="-2 -6 28 18" style={{ transform: b.right ? "none" : "scaleX(-1)", overflow: "visible" }}>
+              <path d={UP} fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <animate attributeName="d" dur={b.flap + "s"} repeatCount="indefinite" values={UP + ";" + DOWN + ";" + UP} />
+              </path>
+            </svg>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* ---------- floating motes ---------- */
+function Motes() {
+  const ref = useRef(null);
+  useEffect(() => {
+    const c = ref.current as HTMLCanvasElement; const ctx = c.getContext("2d")!;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    let w = 0, h = 0, raf = 0;
+    const resize = () => { const r = c.getBoundingClientRect(); w = r.width; h = r.height; c.width = w * dpr; c.height = h * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0); };
+    resize(); window.addEventListener("resize", resize);
+    const ps = Array.from({ length: 55 }, () => ({ x: Math.random() * 1600, y: Math.random() * 1200, vx: (Math.random() - .5) * .25, vy: -.1 - Math.random() * .3, r: Math.random() * 2 + .6, t: Math.random() * 6 }));
+    const tick = () => {
+      ctx.clearRect(0, 0, w, h);
+      for (const p of ps) {
+        p.x += p.vx; p.y += p.vy; p.t += .02;
+        if (p.y < -10) { p.y = h + 10; p.x = Math.random() * w; }
+        if (p.x < -10) p.x = w + 10; if (p.x > w + 10) p.x = -10;
+        const a = .25 + .35 * Math.sin(p.t);
+        const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.r * 4);
+        g.addColorStop(0, "rgba(190,205,255," + a + ")"); g.addColorStop(1, "rgba(190,205,255,0)");
+        ctx.fillStyle = g; ctx.beginPath(); ctx.arc(p.x, p.y, p.r * 4, 0, 6.283); ctx.fill();
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    tick();
+    return () => { cancelAnimationFrame(raf); window.removeEventListener("resize", resize); };
+  }, []);
+  return <canvas ref={ref} className="motes" style={{ width: "100%", height: "100%" }} />;
+}
+ 
+function Logo() {
+  return (
+    <svg width="50" height="50" viewBox="0 0 64 64" aria-label="Logo">
+      <defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#ffffff"/><stop offset="1" stopColor="#d4f53c"/></linearGradient></defs>
+      <polygon points="32,5 55,18 55,46 32,59 9,46 9,18" fill="rgba(255,255,255,.14)" stroke="url(#lg)" strokeWidth="2.4"/>
+      <circle cx="32" cy="32" r="11" fill="none" stroke="#fff" strokeWidth="2.4"/>
+      <circle cx="32" cy="32" r="4" fill="#d4f53c"/>
+    </svg>
+  );
+}
+ 
+ 
+/* ---------- liquid-glass refraction map ---------- */
+const LENS_SPECS = [
+  { id: "lg-bar", w: 480, h: 130 }, { id: "lg-tut", w: 130, h: 118 }, { id: "lg-cred", w: 190, h: 232 },
+  { id: "lg-cam", w: 292, h: 404 }, { id: "lg-tm", w: 296, h: 424 }, { id: "lg-cmd", w: 410, h: 232 }, { id: "lg-bt", w: 310, h: 188 },
+];
+function makeMap(w: number, h: number, r: number, bevel: number): string {
+  const sw = Math.max(8, Math.round(w / 2)), sh = Math.max(8, Math.round(h / 2));
+  const c = document.createElement("canvas"); c.width = sw; c.height = sh;
+  const ctx = c.getContext("2d")!; const img = ctx.createImageData(sw, sh);
+  const k = sw / w, R = r * k, B = bevel * k, hx = sw / 2, hy = sh / 2;
+  for (let y = 0; y < sh; y++) for (let x = 0; x < sw; x++) {
+    const px = x + 0.5 - hx, py = y + 0.5 - hy;
+    const qx = Math.abs(px) - (hx - R), qy = Math.abs(py) - (hy - R);
+    const sdf = Math.hypot(Math.max(qx, 0), Math.max(qy, 0)) + Math.min(Math.max(qx, qy), 0) - R;
+    let nx = 0, ny = 0;
+    if (qx > 0 && qy > 0) { const l = Math.hypot(qx, qy) || 1; nx = Math.sign(px) * qx / l; ny = Math.sign(py) * qy / l; }
+    else if (qx > qy) { nx = Math.sign(px); } else { ny = Math.sign(py); }
+    const d = -sdf;
+    let mag = 0;
+    if (d < 0) mag = 1; else if (d < B) { const q = 1 - d / B; mag = q * q * (3 - 2 * q); }
+    const i = (y * sw + x) * 4;
+    img.data[i] = 128 - nx * mag * 127; img.data[i + 1] = 128 - ny * mag * 127; img.data[i + 2] = 128; img.data[i + 3] = 255;
+  }
+  ctx.putImageData(img, 0, 0);
+  return c.toDataURL("image/png");
+}
+function LensDefs({ specs }: { specs: any[] }) {
+  const ch = (m: string) => m;
+  return (
+    <svg width="0" height="0" style={{ position: "absolute" }} aria-hidden="true" focusable="false">
+      {specs.map((s: any) => (
+        <filter key={s.id} id={s.id} x="0" y="0" width={s.w} height={s.h} filterUnits="userSpaceOnUse" primitiveUnits="userSpaceOnUse" colorInterpolationFilters="sRGB">
+          <feImage href={s.url} x="0" y="0" width={s.w} height={s.h} preserveAspectRatio="none" result="map" />
+          <feDisplacementMap in="SourceGraphic" in2="map" scale="150" xChannelSelector="R" yChannelSelector="G" result="dr" />
+          <feColorMatrix in="dr" type="matrix" values="1 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0" result="cr" />
+          <feDisplacementMap in="SourceGraphic" in2="map" scale="135" xChannelSelector="R" yChannelSelector="G" result="dg" />
+          <feColorMatrix in="dg" type="matrix" values="0 0 0 0 0  0 1 0 0 0  0 0 0 0 0  0 0 0 1 0" result="cg" />
+          <feDisplacementMap in="SourceGraphic" in2="map" scale="120" xChannelSelector="R" yChannelSelector="G" result="db" />
+          <feColorMatrix in="db" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 1 0 0  0 0 0 1 0" result="cb" />
+          <feBlend in="cr" in2="cg" mode="screen" result="rg" />
+          <feBlend in="rg" in2="cb" mode="screen" />
+        </filter>
+      ))}
+    </svg>
+  );
+}
+ 
+/* ---------- robot illustration ---------- */
+const PAT: Record<string, string[]> = {
+  MAJU: ["00100", "01110", "10101", "00100", "00100"],
+  MUNDUR: ["00100", "00100", "10101", "01110", "00100"],
+  KIRI: ["00100", "01000", "11111", "01000", "00100"],
+  KANAN: ["00100", "00010", "11111", "00010", "00100"],
+  STOP: ["11111", "10001", "10001", "10001", "11111"],
+  IDLE: ["01010", "11111", "11111", "01110", "00100"],
+};
+function RobotArt({ cmd, active }: { cmd: string; active: boolean }) {
+  const pat = PAT[cmd] || PAT.IDLE;
+  const U = [0.974, -0.237], V = [0.884, 0.465], c = [206, 172];
+  const pt = (a: number, b: number) => [c[0] + a * U[0] + b * V[0], c[1] + a * U[1] + b * V[1]];
+  const P = (arr: number[][]) => arr.map((q) => q.map((n) => n.toFixed(1)).join(",")).join(" ");
+  const A = [70, 165], AB = [185, -45], AD = [95, 50];
+  const cp = (s: number, t: number) => [A[0] + s * AB[0] + t * AD[0], A[1] + s * AB[1] + t * AD[1]];
+  const T1 = [167, 117], T2 = [232, 101.5], T4 = [193.5, 131];
+  const tp = (s: number, t: number) => [T1[0] + s * (T2[0] - T1[0]) + t * (T4[0] - T1[0]), T1[1] + s * (T2[1] - T1[1]) + t * (T4[1] - T1[1])];
+  const slot = (t0: number, t1: number) => P([tp(.08, t0), tp(.92, t0), tp(.92, t1), tp(.08, t1)]);
+  const wheel = (cx: number, cy: number, key: string) => (
+    <g key={key} transform={"rotate(-12 " + cx + " " + cy + ")"}>
+      {[0, 2, 4, 6, 8, 10, 12].map((o) => <ellipse key={o} cx={cx + o} cy={cy - o * 0.25} rx="14" ry="26" fill="#1b1d25" stroke="#2c303c" strokeWidth="1" />)}
+      <ellipse cx={cx + 12} cy={cy - 3} rx="14" ry="26" fill="#23262f" stroke="#3b3f4d" strokeWidth="5" strokeDasharray="3 3" />
+      <ellipse cx={cx + 12} cy={cy - 3} rx="6" ry="11" fill="#9aa1b3" /><ellipse cx={cx + 12} cy={cy - 3} rx="2.4" ry="4.5" fill="#4b4f5e" />
+    </g>
+  );
+  const leds: any[] = [];
+  for (let i = 0; i < 16; i++) {
+    const a = (i / 16) * 6.2832;
+    leds.push(<rect key={i} className={"led" + (active ? " on" : "")} x={207 + 88 * Math.cos(a) - 4.5} y={177 + 34 * Math.sin(a) - 3} width="9" height="6" rx="1.6" style={{ animationDelay: -i * 0.35 + "s" }} />);
+  }
+  const dots: any[] = [];
+  for (let j = 0; j < 5; j++) for (let i = 0; i < 5; i++) {
+    const q = pt((i - 2) * 9, (j - 2) * 7.2 + 4); const on = pat[j][i] === "1";
+    dots.push(<g key={i + "-" + j}>{on ? <ellipse cx={q[0]} cy={q[1]} rx="6" ry="4" fill="#ff3b30" opacity=".45" filter="url(#rb4)" /> : null}
+      <ellipse cx={q[0]} cy={q[1]} rx="2.5" ry="1.8" transform={"rotate(-13 " + q[0] + " " + q[1] + ")"} fill={on ? "#ff5a4f" : "#2a2d38"} /></g>);
+  }
+  const wires = [["#ff8a1f", "M150 180 C88 122 138 52 216 90"], ["#7a4a2b", "M163 177 C118 122 166 78 226 112"], ["#e8362f", "M258 118 C238 66 176 98 232 156"], ["#0d0e12", "M262 114 C338 112 336 158 292 176"]];
+  return (
+    <svg className="robot-img" viewBox="40 40 340 215" role="img" aria-label="Ilustrasi robot micro:bit beroda dengan LED ring">
+      <defs>
+        <linearGradient id="rtop" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#5aa2ff" /><stop offset="1" stopColor="#1f63e6" /></linearGradient>
+        <linearGradient id="rbrd" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#262a36" /><stop offset="1" stopColor="#0d0f15" /></linearGradient>
+        <linearGradient id="rring" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#343846" /><stop offset="1" stopColor="#14161d" /></linearGradient>
+        <filter id="rb4"><feGaussianBlur stdDeviation="3" /></filter>
+        <filter id="rb10" x="-30%" y="-100%" width="160%" height="300%"><feGaussianBlur stdDeviation="9" /></filter>
+      </defs>
+      <ellipse cx="205" cy="236" rx="160" ry="16" fill="rgba(0,0,0,.45)" filter="url(#rb10)" />
+      {/* chassis */}
+      <polygon points={P([[70, 175], [165, 225], [165, 215], [70, 165]])} fill="#1a4fc0" />
+      <polygon points={P([[165, 225], [350, 180], [350, 170], [165, 215]])} fill="#1544a3" />
+      <polygon points={P([A, [255, 120], [350, 170], [165, 215]])} fill="url(#rtop)" />
+      {[0.12, 0.24, 0.36, 0.48, 0.6, 0.72, 0.84].map((s) => <line key={s} x1={cp(s, 0)[0]} y1={cp(s, 0)[1]} x2={cp(s, 1)[0]} y2={cp(s, 1)[1]} stroke="rgba(255,255,255,.14)" strokeWidth="1.2" />)}
+      <polyline points={P([A, [255, 120], [350, 170]])} fill="none" stroke="rgba(255,255,255,.45)" strokeWidth="1.5" />
+      {/* wheels */}
+      {wheel(96, 160, "wl")}{wheel(232, 126, "wr")}
+      {/* battery box */}
+      <polygon points={P([[167, 145], [193.5, 159], [193.5, 131], [167, 117]])} fill="#14161d" />
+      <polygon points={P([[193.5, 159], [258, 143.5], [258, 115.5], [193.5, 131]])} fill="#0b0c10" />
+      <polygon points={P([[167, 117], [232, 101.5], [258, 115.5], [193.5, 131]])} fill="#262a35" stroke="rgba(255,255,255,.2)" />
+      <polygon points={slot(.1, .45)} fill="#07080b" /><polygon points={slot(.55, .9)} fill="#07080b" />
+      {[tp(.14, .28), tp(.86, .28), tp(.14, .72), tp(.86, .72)].map((q, i) => <circle key={i} cx={q[0]} cy={q[1]} r="3.2" fill={i % 2 ? "#d9dce6" : "#b0b5c4"} />)}
+      {/* LED ring */}
+      <path d="M107 185 a100 40 0 1 0 200 0 a100 40 0 1 0 -200 0 Z" fill="#05060a" />
+      <path fillRule="evenodd" fill="url(#rring)" d="M107 177 a100 40 0 1 0 200 0 a100 40 0 1 0 -200 0 Z M131 177 a76 28 0 1 0 152 0 a76 28 0 1 0 -152 0 Z" />
+      <ellipse cx="207" cy="177" rx="100" ry="40" fill="none" stroke="rgba(255,255,255,.28)" strokeWidth="1.2" />
+      {leds}
+      {/* micro:bit */}
+      <polygon points={P([pt(-52, 40), pt(52, 40), [pt(52, 40)[0], pt(52, 40)[1] + 4], [pt(-52, 40)[0], pt(-52, 40)[1] + 4]])} fill="#05060a" />
+      <polygon points={P([pt(-52, -40), pt(-52, 40), [pt(-52, 40)[0], pt(-52, 40)[1] + 4], [pt(-52, -40)[0], pt(-52, -40)[1] + 4]])} fill="#05060a" />
+      <polygon points={P([pt(-52, -40), pt(52, -40), pt(52, 40), pt(-52, 40)])} fill="url(#rbrd)" stroke="rgba(255,255,255,.22)" />
+      <polygon points={P([pt(-52, -40), pt(52, -40), pt(52, -29), pt(-52, -29)])} fill="#d93a37" />
+      {[-36, -18, 0, 18, 36].map((a) => { const q = pt(a, -34.5); return <ellipse key={a} cx={q[0]} cy={q[1]} rx="3.6" ry="2.4" fill="#e9b44c" stroke="#9a6d1c" strokeWidth=".8" />; })}
+      <polygon points={P([pt(-40, 26), pt(-12, 26), pt(-26, 37)])} fill="#2e9bff" /><polygon points={P([pt(14, 28), pt(40, 28), pt(28, 37)])} fill="#2e9bff" />
+      {dots}
+      {[-36, 36].map((a) => { const q = pt(a, 4); return <ellipse key={a} cx={q[0]} cy={q[1]} rx="4.2" ry="3" fill="#3a3e4c" stroke="rgba(255,255,255,.35)" />; })}
+      {/* wires */}
+      <g fill="none" strokeWidth="3.2" strokeLinecap="round" style={{ filter: "drop-shadow(0 2px 2px rgba(0,0,0,.4))" }}>
+        {wires.map((w) => <path key={w[0]} d={w[1]} stroke={w[0]} />)}
+      </g>
+    </svg>
+  );
+}
+ 
+/* ---------- panel shell ---------- */
+function Panel(props: any) {
+  const { p, narrow, z, delay, fd, ghost, children, label, lens } = props;
+  const lensStyle: any = (!narrow && lens) ? { backdropFilter: "url(#" + lens + ") saturate(1.7) brightness(1.1)" } : undefined;
+  const style: any = narrow ? {} : { left: p.l, top: p.t, width: p.w, height: p.h, zIndex: z, transform: "rotateY(" + (p.ry || 0) + "deg) rotateX(" + (p.rx || 0) + "deg)" };
+  return (
+    <div className={"pnl " + (narrow ? "flowp " : "") + (ghost ? "ghost " + (ghost === 2 ? "ghost2" : "") : "")} style={style} aria-label={label} aria-hidden={ghost ? true : undefined}>
+      <div className="in" style={{ animationDelay: delay + "ms" }}>
+        <div className="float" style={{ animationDelay: -fd + "s" }}><div className="gp" style={lensStyle}>{children}</div></div>
+      </div>
+    </div>
+  );
+}
+ 
+/* ---------- app ---------- */
+function App() {
+  const [day, setDay] = useState(false);
+  const [glow, setGlow] = useState(false);
+  const [vw, setVw] = useState(window.innerWidth);
+  const [tutorial, setTutorial] = useState(false);
+  const [toast, setToast] = useState("");
+ 
+  const [url, setUrl] = useState("");
+  const [modelStat, setModelStat] = useState<Stat>({ tone: "idle", text: "Model belum dimuat" });
+  const [labels, setLabels] = useState<string[]>([]);
+  const [demo, setDemo] = useState(false);
+  const [loading, setLoading] = useState(false);
+ 
+  const [bt, setBt] = useState<Stat>({ tone: "idle", text: "Belum terhubung" });
+  const [deviceName, setDeviceName] = useState("");
+ 
+  const [camOn, setCamOn] = useState(false);
+  const [gesture, setGesture] = useState("---");
+  const [conf, setConf] = useState(0);
+  const [command, setCommand] = useState("---");
+  const [cmdKey, setCmdKey] = useState(0);
+  const [moving, setMoving] = useState("");
+  const [sent, setSent] = useState(false);
+ 
+  const lenses = React.useMemo(() => LENS_SPECS.map((s: any) => ({ ...s, url: makeMap(s.w, s.h, 34, Math.min(84, Math.min(s.w, s.h) * 0.5)) })), []);
+  const modelRef = useRef<any>(null);
+  const webcamRef = useRef<any>(null);
+  const hostRef = useRef<any>(null);
+  const runRef = useRef(false);
+  const rafRef = useRef(0);
+  const timerRef = useRef<any>(null);
+  const deviceRef = useRef<any>(null);
+  const uartRef = useRef<any>(null);
+  const lastCmd = useRef("");
+  const lastTime = useRef(0);
+  const glowRef = useRef<any>(null);
+  const toastTimer = useRef<any>(null);
+  const moveTimer = useRef<any>(null);
+ 
+  const say = useCallback((msg: string) => {
+    setToast(msg); clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToast(""), 4200);
+  }, []);
+ 
+  useEffect(() => { document.documentElement.classList.toggle("day", day); }, [day]);
+  useEffect(() => {
+    const onResize = () => setVw(window.innerWidth);
+    const onMove = (e: any) => { if (glowRef.current) glowRef.current.style.transform = "translate(" + e.clientX + "px," + e.clientY + "px)"; };
+    const onKey = (e: any) => { if (e.key === "Escape") setTutorial(false); };
+    window.addEventListener("resize", onResize); window.addEventListener("mousemove", onMove); window.addEventListener("keydown", onKey);
+    return () => { window.removeEventListener("resize", onResize); window.removeEventListener("mousemove", onMove); window.removeEventListener("keydown", onKey); };
+  }, []);
+ 
+  /* ----- command ----- */
+  const sendCommand = useCallback(async (cmd: string) => {
+    setCommand(cmd); setCmdKey((k: number) => k + 1);
+    setMoving(cmd); clearTimeout(moveTimer.current);
+    moveTimer.current = setTimeout(() => setMoving(""), 1100);
+    if (!uartRef.current) { setSent(false); return; }
+    try { await uartRef.current.writeValue(new TextEncoder().encode(cmd + "\n")); setSent(true); }
+    catch (err) { console.error(err); setSent(false); }
+  }, []);
+ 
+  /* ----- model ----- */
+  const loadModel = async () => {
+    let u = url.trim();
+    if (!u) { say("Tempel link model Teachable Machine terlebih dahulu."); return; }
+    if (u.indexOf("teachablemachine.withgoogle.com/models/") === -1) { say("Link harus berupa link model Teachable Machine."); return; }
+    if (typeof tmImage === "undefined") { setModelStat({ tone: "err", text: "Library belum termuat" }); say("Library Teachable Machine gagal dimuat. Periksa koneksi internet."); return; }
+    try {
+      setLoading(true); setModelStat({ tone: "busy", text: "Memuat model…" });
+      if (!u.endsWith("/")) u += "/";
+      const m = await tmImage.load(u + "model.json", u + "metadata.json");
+      stopCamera();
+      modelRef.current = m; setDemo(false);
+      setLabels(m.getClassLabels ? m.getClassLabels() : []);
+      setModelStat({ tone: "ok", text: "Model siap · " + m.getTotalClasses() + " gesture" });
+    } catch (err: any) {
+      console.error(err);
+      setModelStat({ tone: "err", text: "Gagal memuat model" });
+      say("Model gagal dimuat. Pastikan link benar dan project dibagikan secara publik.");
+    } finally { setLoading(false); }
+  };
+  const useDemo = () => {
+    stopCamera();
+    modelRef.current = { demo: true }; setDemo(true); setLabels(DEMO_LABELS);
+    setModelStat({ tone: "ok", text: "Mode demo · 5 gesture" });
+    say("Mode demo aktif. Tekan tombol play di kartu Camera untuk melihat simulasi gestur.");
+  };
+ 
+  /* ----- prediction ----- */
+  const handlePrediction = useCallback((name: string, prob: number) => {
+    setGesture(name); setConf(Math.round(prob * 100));
+    if (prob < THRESHOLD) return;
+    const key = name.trim().toLowerCase();
+    const cmd = CMD_MAP[key] || key.toUpperCase();
+    const now = Date.now();
+    if (cmd !== lastCmd.current || now - lastTime.current > 700) { lastCmd.current = cmd; lastTime.current = now; sendCommand(cmd); }
+  }, [sendCommand]);
+ 
+  const startCamera = async () => {
+    if (!modelRef.current) { say("Load model dulu, atau coba mode demo."); return; }
+    if (runRef.current) return;
+    if (modelRef.current.demo) {
+      runRef.current = true; setCamOn(true);
+      const step = () => handlePrediction(DEMO_LABELS[Math.floor(Math.random() * DEMO_LABELS.length)], 0.84 + Math.random() * 0.15);
+      step(); timerRef.current = setInterval(step, 2000);
+      return;
+    }
+    try {
+      const wc = new tmImage.Webcam(360, 360, true);
+      await wc.setup(); await wc.play();
+      webcamRef.current = wc;
+      hostRef.current.innerHTML = ""; hostRef.current.appendChild(wc.canvas);
+      runRef.current = true; setCamOn(true);
+      const loop = async () => {
+        if (!runRef.current) return;
+        wc.update();
+        const preds = await modelRef.current.predict(wc.canvas);
+        let best = preds[0];
+        for (const p of preds) if (p.probability > best.probability) best = p;
+        handlePrediction(best.className, best.probability);
+        rafRef.current = requestAnimationFrame(loop);
+      };
+      rafRef.current = requestAnimationFrame(loop);
+    } catch (err) {
+      console.error(err);
+      say("Kamera tidak bisa dibuka. Izinkan akses kamera di browser, atau buka halaman ini di tab sendiri.");
+    }
+  };
+  function stopCamera() {
+    runRef.current = false; cancelAnimationFrame(rafRef.current); clearInterval(timerRef.current);
+    if (webcamRef.current) { try { webcamRef.current.stop(); } catch (e) {} webcamRef.current = null; }
+    if (hostRef.current) hostRef.current.innerHTML = "";
+    setCamOn(false); setGesture("---"); setConf(0);
+  }
+ 
+  /* ----- bluetooth ----- */
+  const connectBt = async () => {
+    const nav: any = navigator;
+    if (!nav.bluetooth) { setBt({ tone: "err", text: "Browser tidak mendukung" }); say("Web Bluetooth hanya tersedia di Chrome atau Edge."); return; }
+    try {
+      setBt({ tone: "busy", text: "Mencari perangkat…" });
+      const dev = await nav.bluetooth.requestDevice({ acceptAllDevices: true, optionalServices: [UART_SERVICE] });
+      dev.addEventListener("gattserverdisconnected", () => { uartRef.current = null; setSent(false); setDeviceName(""); setBt({ tone: "err", text: "Terputus" }); });
+      const server = await dev.gatt.connect();
+      const service = await server.getPrimaryService(UART_SERVICE);
+      uartRef.current = await service.getCharacteristic(UART_WRITE);
+      deviceRef.current = dev; setDeviceName(dev.name || "micro:bit");
+      setBt({ tone: "ok", text: "Terhubung" });
+    } catch (err: any) {
+      console.error(err);
+      const cancelled = err && err.name === "NotFoundError";
+      setBt({ tone: cancelled ? "idle" : "err", text: cancelled ? "Belum terhubung" : "Gagal terhubung" });
+      if (!cancelled) say("Tidak bisa terhubung: " + (err && err.message ? err.message : "periksa Bluetooth") + ". Jika halaman tampil di dalam frame, buka di tab sendiri.");
+    }
+  };
+  const disconnectBt = () => {
+    const d = deviceRef.current;
+    if (d && d.gatt && d.gatt.connected) d.gatt.disconnect();
+    else { uartRef.current = null; setBt({ tone: "idle", text: "Belum terhubung" }); setDeviceName(""); }
+  };
+ 
+  /* ----- layout ----- */
+  const narrow = vw < 900;
+  const scale = Math.min(1, (vw - 16) / 1200);
+  const locked = camOn && conf >= THRESHOLD * 100;
+  const gTone: Tone = !camOn ? "idle" : locked ? "ok" : "busy";
+  const gText = !camOn ? "Menunggu kamera" : locked ? "Gestur terkunci" : "Memindai…";
+ 
+  const dpad = (cmd: string, icon: string, extra?: string) => (
+    <button className={"dpad " + (extra || "") + (command === cmd ? " hot" : "")} onClick={() => sendCommand(cmd)} aria-label={cmd}><Icon name={icon} size={20} /></button>
+  );
+ 
+  const robot = (
+    <div className="robot-wrap" style={narrow ? { position: "relative", width: Math.min(340, vw * 0.8), margin: "10px auto 0", transform: MOVES[moving] || "none" } : { left: 360, top: 403, width: 480, zIndex: 3, transform: MOVES[moving] || "none" }}>
+      {camOn ? <div className="aura" /> : null}
+      <div className="bob"><RobotArt cmd={command} active={camOn || !!moving} /></div>
+    </div>
+  );
+  const rock = (
+    <svg viewBox="0 0 460 150" style={narrow ? { display: "block", width: Math.min(420, vw * 0.9), margin: "-46px auto 12px" } : { position: "absolute", left: 370, top: 628, width: 460, height: 150, zIndex: 2 }} aria-hidden="true">
+      <defs><linearGradient id="rk" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#6a6f7d" /><stop offset=".5" stopColor="#3a3f4c" /><stop offset="1" stopColor="#1c2029" /></linearGradient></defs>
+      <path d="M10 118 C30 60 90 38 160 36 C220 30 300 32 360 44 C420 58 450 96 452 124 C380 148 90 150 10 118 Z" fill="url(#rk)" />
+      <path d="M60 78 C110 52 220 44 330 52 C380 58 410 74 420 90 C330 66 150 62 60 78 Z" fill="rgba(255,255,255,.14)" />
+      <ellipse cx="230" cy="48" rx="170" ry="10" fill="rgba(0,0,0,.35)" />
+    </svg>
+  );
+ 
+  const body = (
+    <>
+      {narrow ? <div>{robot}{rock}</div> : <>{rock}{robot}</>}
+ 
+      {/* top: gesture bar */}
+      <Panel p={{ l: 150, t: 36, w: 480, h: 130, ry: 14, rx: 2 }} z={6} delay={300} fd={0} narrow={narrow} label="Gesture terdeteksi" lens="lg-bar">
+        <div className="flex items-center gap-4" style={{ height: "100%" }}>
+          <div className="tile" style={{ width: 84, height: 84 }}><Icon name="hand" size={38} /></div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div key={gesture} className="t-name flash">{gesture}</div>
+            <div className="t-sub"><Dot tone={gTone} pulse={camOn} />{gText}</div>
+            <div className="bar"><i style={{ width: conf + "%" }} /></div>
+            <div className="bar-l"><span>Confidence</span><span>{conf}%</span></div>
+          </div>
+          <button className={"round-w" + (camOn ? " stop" : "")} onClick={camOn ? stopCamera : startCamera} aria-label={camOn ? "Stop kamera" : "Start kamera"}><Icon name={camOn ? "pause" : "play"} size={22} /></button>
+        </div>
+      </Panel>
+ 
+      {/* tutorial tile */}
+      <Panel p={{ l: 668, t: 50, w: 130, h: 118, ry: -10 }} z={6} delay={420} fd={1.5} narrow={narrow} label="Tutorial" lens="lg-tut">
+        <button className="tut" onClick={() => setTutorial(true)} aria-label="Lihat tutorial">
+          <div><div className="tile" style={{ width: 54, height: 54, margin: "0 auto 8px", background: "linear-gradient(180deg,#5ab0ff,#0a6cff)", color: "#fff" }}><Icon name="book" size={26} /></div><div style={{ fontWeight: 800, fontSize: ".8rem", letterSpacing: ".06em" }}>TUTORIAL</div></div>
+        </button>
+      </Panel>
+ 
+      {/* credits */}
+      <Panel p={{ l: 905, t: 28, w: 190, h: 232, ry: -34 }} z={5} delay={540} fd={2.5} narrow={narrow} label="Dibuat oleh" lens="lg-cred">
+        <div className="crew">
+          {[["Gifa", "#8fd0ff", "#2f8cff"], ["Zidane", "#5aa9ff", "#0a5cff"], ["Yandhi", "#8f9bff", "#4a3fe0"]].map((x) => (
+            <div key={x[0]} className="crew-row">
+              <span className="crew-av" style={{ background: "linear-gradient(145deg," + x[1] + "," + x[2] + ")" }}>{x[0][0]}</span>
+              <span className="crew-name">{x[0]}</span>
+            </div>
+          ))}
+        </div>
+      </Panel>
+ 
+      {/* ghosts (depth) */}
+      {!narrow ? <>
+        <Panel ghost={1} p={{ l: 350, t: 206, w: 290, h: 92, ry: 8 }} z={1} delay={700} fd={3} narrow={narrow}><div className="flex items-center gap-3"><div className="tile" style={{ width: 54, height: 54 }} /><div style={{ flex: 1 }}><div className="bar" /><div className="bar" style={{ width: "60%" }} /></div></div></Panel>
+        <Panel ghost={1} p={{ l: 700, t: 214, w: 120, h: 104, ry: -12 }} z={1} delay={760} fd={4} narrow={narrow}><div className="tile" style={{ width: 54, height: 54, margin: "0 auto" }} /></Panel>
+        <Panel ghost={2} p={{ l: -6, t: 300, w: 110, h: 330, ry: 62 }} z={1} delay={800} fd={5} narrow={narrow}><div className="tile" style={{ width: 54, height: 54 }} /></Panel>
+        <Panel ghost={2} p={{ l: 1100, t: 340, w: 110, h: 300, ry: -64 }} z={1} delay={860} fd={6} narrow={narrow}><div className="tile" style={{ width: 54, height: 54 }} /></Panel>
+      </> : null}
+ 
+      {/* camera */}
+      <Panel p={{ l: 62, t: 205, w: 292, h: 404, ry: 12 }} z={5} delay={380} fd={1} narrow={narrow} label="Camera" lens="lg-cam">
+        <div className="cam-view" style={{ maxWidth: 300 }}>
+          <div className="cam-host" ref={hostRef} />
+          {!camOn ? <div className="absolute inset-0 grid place-items-center text-center" style={{ color: "rgba(255,255,255,.85)", fontSize: ".85rem", padding: 16 }}>Kamera belum aktif</div> : null}
+          {camOn && demo ? (
+            <svg viewBox="0 0 200 200" className="absolute inset-0" style={{ width: "100%", height: "100%" }} aria-hidden="true">
+              {[[[100,170],[72,140],[45,105]],[[100,170],[85,110],[80,55]],[[100,170],[100,105],[100,45]],[[100,170],[115,110],[120,58]],[[100,170],[128,122],[145,80]]].map((f: any, i: number) => (
+                <g key={i}><polyline points={f.map((q: any) => q.join(",")).join(" ")} fill="none" stroke="rgba(255,255,255,.8)" strokeWidth="1.6" strokeLinecap="round" />
+                  {f.map((q: any, j: number) => <circle key={j} className="lm" cx={q[0]} cy={q[1]} r="3.4" fill="#7ec3ff" style={{ animationDelay: (i * 0.2 + j * 0.15) + "s" }} />)}</g>
+              ))}
+            </svg>
+          ) : null}
+          {camOn ? <div className="scan" /> : null}
+          {camOn && demo ? <span className="status-pill absolute" style={{ left: 10, top: 10, padding: ".2rem .6rem", fontSize: ".66rem" }}>MODE DEMO</span> : null}
+        </div>
+        <div className="flex items-center justify-between" style={{ marginTop: 14 }}>
+          <div><div className="t-name">Camera</div><div className="t-sub">{camOn ? (demo ? "Simulasi gestur" : "Hand tracking aktif") : "Siap dinyalakan"}</div></div>
+          <Dot tone={camOn ? "ok" : "idle"} pulse={camOn} />
+        </div>
+        <div className="flex justify-center" style={{ marginTop: 14 }}>
+          {camOn
+            ? <button className="round-w stop" style={{ width: 58, height: 58 }} onClick={stopCamera} aria-label="Stop kamera"><Icon name="pause" size={24} /></button>
+            : <button className="round-w" style={{ width: 58, height: 58 }} onClick={startCamera} aria-label="Start kamera"><Icon name="play" size={24} /></button>}
+        </div>
+      </Panel>
+ 
+      {/* teachable machine */}
+      <Panel p={{ l: 848, t: 188, w: 296, h: 424, ry: -12 }} z={5} delay={460} fd={2} narrow={narrow} label="Teachable Machine" lens="lg-tm">
+        <div className="cover" style={{ height: 116 }}>
+          {labels.length ? labels.map((l: string) => <span key={l} className="chip">{l}</span>) : <div><Icon name="cube" size={34} /><div style={{ fontSize: ".76rem", marginTop: 4 }}>Belum ada model</div></div>}
+        </div>
+        <div className="flex items-center justify-between" style={{ marginTop: 12 }}>
+          <div><div className="t-name">Teachable Machine</div><div className="t-sub">Link model Teachable Machine</div></div>
+        </div>
+        <input className="field" style={{ marginTop: 10 }} value={url} onChange={(e: any) => setUrl(e.target.value)} placeholder="https://teachablemachine.withgoogle.com/models/…" aria-label="Link model" onKeyDown={(e: any) => e.key === "Enter" && loadModel()} />
+        <div className="flex gap-2" style={{ marginTop: 10 }}>
+          <button className="pill-btn btn-white" style={{ flex: 1 }} onClick={loadModel} disabled={loading}>{loading ? <span className="spinner" /> : null}Load Model</button>
+          <button className="pill-btn btn-glass" onClick={useDemo}>Demo</button>
+        </div>
+        <div style={{ marginTop: 12 }}><Pill tone={modelStat.tone} text={modelStat.text} pulse={modelStat.tone === "busy"} /></div>
+      </Panel>
+ 
+      {/* robot command */}
+      <Panel p={{ l: 232, t: 538, w: 410, h: 232, ry: 7, rx: -2 }} z={7} delay={560} fd={3.5} narrow={narrow} label="Robot Command" lens="lg-cmd">
+        <div className="flex items-center gap-5" style={{ height: "100%" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 48px)", gap: 8, flex: "none" }}>
+            <span />{dpad("MAJU", "up")}<span />
+            {dpad("KIRI", "left")}{dpad("STOP", "stop", "stop")}{dpad("KANAN", "right")}
+            <span />{dpad("MUNDUR", "down")}<span />
+          </div>
+          <div style={{ minWidth: 0 }}>
+            <div className="t-name" style={{ fontSize: "1.05rem" }}>Robot Command</div>
+            <div className="muted" style={{ marginTop: 10 }}>Command terakhir</div>
+            <div key={cmdKey} className="flash" style={{ fontSize: "1.9rem", fontWeight: 800, letterSpacing: ".01em", color: command === "---" ? "rgba(255,255,255,.7)" : "var(--lime)", lineHeight: 1.15 }}>{command}</div>
+            <div className="t-sub" style={{ marginTop: 8 }}><Dot tone={sent ? "ok" : "idle"} />{sent ? "Terkirim ke micro:bit" : "Belum terhubung"}</div>
+          </div>
+        </div>
+      </Panel>
+ 
+      {/* bluetooth */}
+      <Panel p={{ l: 800, t: 636, w: 310, h: 188, ry: -16 }} z={6} delay={640} fd={4.5} narrow={narrow} label="micro:bit Bluetooth" lens="lg-bt">
+        <div className="flex items-center gap-3">
+          <div className="tile" style={{ width: 46, height: 46, borderRadius: 16, background: "linear-gradient(180deg,#6a7dff,#3a2fd0)" }}><Icon name="bt" size={22} /></div>
+          <div style={{ minWidth: 0 }}><div className="t-name" style={{ fontSize: "1.05rem" }}>micro:bit Bluetooth</div><div className="t-sub">{deviceName || "Chrome atau Edge"}</div></div>
+        </div>
+        <div style={{ marginTop: 12 }}><Pill tone={bt.tone} text={bt.text} pulse={bt.tone === "busy" || bt.tone === "ok"} /></div>
+        <div className="flex gap-2" style={{ marginTop: 12 }}>
+          <button className="pill-btn btn-white" style={{ flex: 1, padding: ".6rem .8rem" }} onClick={connectBt}>Connect micro:bit</button>
+          <button className="pill-btn btn-red" style={{ padding: ".6rem .9rem" }} onClick={disconnectBt}>Disconnect</button>
+        </div>
+      </Panel>
+    </>
+  );
+ 
+  return (
+    <div className="world">
+      <Scene />
+      <Motes />
+      <Birds />
+      <svg width="0" height="0" style={{ position: "absolute" }} aria-hidden="true" focusable="false">
+        <filter id="glassText" x="-5%" y="-25%" width="110%" height="150%" colorInterpolationFilters="sRGB">
+          <feGaussianBlur in="SourceAlpha" stdDeviation="8" result="shb" />
+          <feOffset in="shb" dy="9" result="sho" />
+          <feFlood floodColor="#03166a" floodOpacity=".5" result="shc" />
+          <feComposite in="shc" in2="sho" operator="in" result="shadow" />
+          <feGaussianBlur in="SourceAlpha" stdDeviation="2.4" result="bev" />
+          <feSpecularLighting in="bev" surfaceScale="7" specularConstant="1.25" specularExponent="26" lightingColor="#ffffff" result="spec">
+            <feDistantLight azimuth="235" elevation="52" />
+          </feSpecularLighting>
+          <feComposite in="spec" in2="SourceAlpha" operator="in" result="specIn" />
+          <feMorphology in="SourceAlpha" operator="erode" radius="1.4" result="er" />
+          <feComposite in="SourceAlpha" in2="er" operator="out" result="edge" />
+          <feFlood floodColor="#ffffff" floodOpacity=".9" result="wf" />
+          <feComposite in="wf" in2="edge" operator="in" result="rim" />
+          <feGaussianBlur in="SourceAlpha" stdDeviation="1.6" result="ib" />
+          <feOffset in="ib" dx="3" dy="4" result="ibo" />
+          <feComposite in="SourceAlpha" in2="ibo" operator="out" result="inner" />
+          <feFlood floodColor="#bcd4ff" floodOpacity=".55" result="icf" />
+          <feComposite in="icf" in2="inner" operator="in" result="innerGlow" />
+          <feMerge>
+            <feMergeNode in="shadow" />
+            <feMergeNode in="SourceGraphic" />
+            <feMergeNode in="innerGlow" />
+            <feMergeNode in="specIn" />
+            <feMergeNode in="rim" />
+          </feMerge>
+        </filter>
+      </svg>
+      <LensDefs specs={lenses} />
+      <div ref={glowRef} className="cursor-glow" style={{ opacity: glow ? 1 : 0 }} />
+ 
+      <header className="relative flex items-center justify-between px-5 py-5 md:px-8" style={{ zIndex: 10 }}>
+        <div className="flex items-center gap-3 rise">
+          <div className="grid place-items-center rounded-2xl" style={{ width: 44, height: 44, background: "linear-gradient(180deg,#5ab0ff,#0a6cff)", color: "#fff", boxShadow: "inset 0 1px 1px rgba(255,255,255,.7), 0 10px 28px -8px rgba(10,108,255,.7)" }}><Icon name="hand" size={24} /></div>
+          <span className="font-extrabold tracking-tight text-lg hidden sm:inline" style={{ textShadow: "0 2px 14px rgba(10,20,60,.4)" }}>Gesture Controller</span>
+        </div>
+        <div className="flex items-center gap-3 rise" style={{ animationDelay: "200ms" }}>
+          <button className={"icon-btn " + (day ? "on" : "")} onClick={() => setDay(!day)} aria-pressed={day} title={day ? "Mode malam" : "Mode siang"} aria-label="Ganti suasana siang atau malam"><Icon name={day ? "moon" : "sun"} /></button>
+        </div>
+      </header>
+ 
+      <main className="relative" style={{ zIndex: 5 }}>
+        <section className="text-center px-5" style={{ paddingTop: 4 }}>
+          <h1 className="hero-title rise" style={{ animationDelay: "150ms" }}>Satu gerakan tangan,<br /><span>robot langsung beraksi</span></h1>
+                  </section>
+ 
+        {narrow ? (
+          <div style={{ padding: "18px 16px 30px", maxWidth: 520, margin: "0 auto" }}>{body}</div>
+        ) : (
+          <div style={{ height: 800 * scale, marginTop: 8 }}>
+            <div style={{ position: "relative", width: 1200, height: 800, perspective: 1800, perspectiveOrigin: "50% 35%", transformOrigin: "top left", transform: "scale(" + scale + ")", left: (vw - 1200 * scale) / 2 }}>{body}</div>
+          </div>
+        )}
+        <div style={{ height: 22 }} />
+      </main>
+      
+ 
+      {toast ? <div className="toast" role="alert">{toast}</div> : null}
+ 
+      {tutorial ? (
+        <div className="modal-back" onClick={() => setTutorial(false)}>
+          <div className="modal" onClick={(e: any) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Tutorial">
+            <div className="flex items-center justify-between" style={{ marginBottom: 14 }}>
+              <h2 style={{ margin: 0, fontSize: "1.4rem", fontWeight: 800 }}>Cara memakai</h2>
+              <button className="icon-btn" onClick={() => setTutorial(false)} aria-label="Tutup"><Icon name="close" /></button>
+            </div>
+            <ol style={{ margin: 0, paddingLeft: 20, display: "grid", gap: 14, lineHeight: 1.6, fontSize: ".92rem" }}>
+              <li>Buat Image Project di Teachable Machine dengan lima kelas: <b>maju, mundur, kiri, kanan, stop</b>. Latih modelnya, lalu Export Model → Upload → salin link.</li>
+              <li>Tempel link di kartu <b>Teachable Machine</b> dan klik <b>Load Model</b>.</li>
+              <li>Di MakeCode untuk micro:bit, tambahkan blok <b>bluetooth uart service</b> dan <b>on bluetooth uart received (newline)</b>. Cocokkan teks MAJU, MUNDUR, KIRI, KANAN, dan STOP ke gerakan motor.</li>
+              <li>Klik <b>Connect micro:bit</b> di Chrome atau Edge, lalu pilih perangkat.</li>
+              <li>Tekan tombol <b>play</b> di kartu Camera dan peragakan gestur. Command terkirim saat confidence minimal 80%.</li>
+            </ol>
+            <p className="muted" style={{ marginTop: 16 }}>Tanpa model? Pilih <b>Demo</b> di kartu Teachable Machine. Robot di tengah ikut bergerak setiap command berubah, dan tombol arah di kartu Robot Command bisa dipakai untuk uji manual.</p>
+            <button className="pill-btn btn-white" style={{ marginTop: 18, width: "100%" }} onClick={() => setTutorial(false)}>Mengerti</button>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+ 
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+})();
+</script>
+ 
+<script>
+(function () {
+  try {
+    var src = document.getElementById("app-src").textContent;
+    var out = Babel.transform(src, { filename: "app.tsx", presets: [["typescript", { isTSX: true, allExtensions: true }], "react"] }).code;
+    var s = document.createElement("script");
+    s.textContent = out;
+    document.body.appendChild(s);
+  } catch (e) {
+    document.getElementById("root").innerHTML = '<pre style="padding:24px;color:#ffd0d0;white-space:pre-wrap;font:13px/1.5 monospace">Gagal memuat aplikasi:\n' + e.message + "</pre>";
+  }
+})();
+</script>
+</body>
+</html>
